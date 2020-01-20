@@ -4,10 +4,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.URL;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -18,11 +15,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.dito.challenge.dto.CustomDataJsonDTO;
-import com.dito.challenge.dto.EventJsonDTO;
 import com.dito.challenge.dto.EventsDTO;
 import com.dito.challenge.dto.EventsJsonDTO;
-import com.dito.challenge.dto.ProductsJsonDTO;
 import com.dito.challenge.dto.TimelineJsonDTO;
 import com.dito.challenge.model.Events;
 import com.dito.challenge.service.EventsService;
@@ -31,6 +25,8 @@ import com.google.gson.Gson;
 @RestController
 @RequestMapping("/api/events")
 public class EventsController {
+	
+	private static final String ENDPOINT_API_EVENTS_JSON = "https://storage.googleapis.com/dito-questions/events.json";
 	
 	@Autowired
 	EventsService eventsService;
@@ -55,28 +51,12 @@ public class EventsController {
 	}
 	
 	@GetMapping("/dataMnipulation")
-	public ResponseEntity< Map<String, List<TimelineJsonDTO>>> dataMnipulation() throws Exception {
+	public ResponseEntity<List<TimelineJsonDTO>> dataMnipulation() throws Exception {
 		
-		List<TimelineJsonDTO> timelines = new ArrayList<>();
-		
-		String json = converterUrlFromJson("https://storage.googleapis.com/dito-questions/events.json");
+		String json = converterUrlFromJson(ENDPOINT_API_EVENTS_JSON);
         EventsJsonDTO eventsJson = new Gson().fromJson(json, EventsJsonDTO.class);
-		
-        for(EventJsonDTO eventJson : eventsJson.getEvents()) {
-        	
-        	TimelineJsonDTO timeline = new TimelineJsonDTO();
-        	timeline.setTimestamp(eventJson.getTimestamp());
-        	timeline.setRevenue(eventJson.getRevenue());
-        	timeline = converterCustomData(timeline, eventJson);
-        	
-        	timelines.add(timeline);
-        	
-        }
         
-        Map<String, List<TimelineJsonDTO>> groupingBy = timelines.stream().collect(
-                Collectors.groupingBy(TimelineJsonDTO::getTransaction_id, Collectors.toList()));
-        
-		return ResponseEntity.ok().body(groupingBy);
+        return ResponseEntity.ok().body(eventsService.dataMnipulation(eventsJson));
 		
 	}
 	
@@ -95,40 +75,7 @@ public class EventsController {
 	    bufferedReader.close();
 
 	    return sbJson.toString();
-	}
-	
-	private TimelineJsonDTO converterCustomData(TimelineJsonDTO timeline, EventJsonDTO eventJson) {
-		
-		ProductsJsonDTO products = new ProductsJsonDTO();
-		List<ProductsJsonDTO> listProducts = new ArrayList<>();
-		
-		for(CustomDataJsonDTO custom_data : eventJson.getCustom_data()) {
-			
-			if(custom_data.getKey().equals("transaction_id")) {
-    			timeline.setTransaction_id((String) custom_data.getValue());
-    		}
-			else if(eventJson.getEvent().equals("comprou") && custom_data.getKey().equals("store_name")) {
-	    			timeline.setStore_name((String) custom_data.getValue());
-    		}
-			else if(eventJson.getEvent().equals("comprou-produto")) {
-
-				if(custom_data.getKey().equals("product_name")) {
-					products.setName((String) custom_data.getValue());
-	    		}
-				else if(custom_data.getKey().equals("product_price")) {
-					products.setPrice((Double) custom_data.getValue());
-	    		}
-				
-			}
-			
-		}
-		
-		if(products.getName() != null || products.getPrice() != null) {
-			listProducts.add(products);
-			timeline.setProducts(listProducts);
-		}
-		
-    	return timeline;
+	    
 	}
 	
 }
